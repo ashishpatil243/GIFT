@@ -34,8 +34,8 @@ To build from source you also need [Go](https://go.dev/dl/) 1.20 or newer.
 
    ```
    gift/
-   ├── gift-server        # (gift-server.exe on Windows)
-   ├── gift-cli           # (gift-cli.exe on Windows), no ui/ needed
+   ├── gift-server        
+   ├── gift-cli          
    ├── .env.example
    └── ui/
        └── index.html ...
@@ -46,17 +46,6 @@ To build from source you also need [Go](https://go.dev/dl/) 1.20 or newer.
    ```bash
    chmod +x gift-server gift-cli
    ```
-
-### Build from source
-
-```bash
-git clone https://github.com/<your-username>/GIFT.git
-cd GIFT
-go build -o gift-server gift-server.go
-go build -o gift-cli    gift-cli.go
-```
-
-> Both files declare `package main` with overlapping names, so build them **one file at a time** as shown (don't run `go build .`). If you prefer, move them into `cmd/gift-server/` and `cmd/gift-cli/` and build each directory.
 
 Cross-compile examples:
 
