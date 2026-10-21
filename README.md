@@ -31,8 +31,6 @@ It ships as two binaries: **`gift-server`** (web UI + JSON API) and **`gift-cli`
 - Outbound internet access to `github.com` and `api.github.com`
 - A `ui/` directory next to the binary (the frontend is served from `./ui`, configurable with `-ui` / `UI_DIR`)
 
-To build from source you also need [Go](https://go.dev/dl/) 1.20 or newer.
-
 ## Installation
 
 ### Download a release
