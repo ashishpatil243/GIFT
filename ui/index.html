@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>GIFT - Git Identity Forensics Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <style>
+        /* Base terminal background modes */
+        .terminal-bg { background-color: #000000; transition: background-color 0.2s ease, color 0.2s ease; }
+        .terminal-bg.light-theme { background-color: #f8f9fa; }
+        
+        @keyframes extendBar {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        .animate-progress {
+            animation: extendBar 4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+
+        .terminal-input-wrapper {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Native browser block caret implementation */
+        #targetInput {
+            background: transparent;
+            border: none;
+            color: white;
+            font-family: monospace;
+            outline: none;
+            width: 100%;
+            min-width: 200px;
+            caret-color: #10b981;
+        }
+        @supports (caret-shape: block) {
+            #targetInput {
+                caret-shape: block;
+            }
+        }
+        #targetInput::placeholder {
+            color: #525252;
+            opacity: .5;
+        }
+
+        /* Light theme overrides */
+        .light-theme #targetInput {
+            color: #171717;
+        }
+        .light-theme #targetInput::placeholder {
+            color: #737373;
+        }
+    </style>
+</head>
+<body class="terminal-bg text-gray-200 min-h-screen font-mono p-4 md:p-12 selection:bg-gray-800 relative">
+
+    <div class="absolute top-4 right-4 md:top-8 md:right-12 z-50 select-none">
+        <button id="themeToggleBtn" onclick="toggleThemeMode()" 
+                class="font-mono text-xs font-bold border border-neutral-800 bg-neutral-950/40 text-neutral-400 hover:text-emerald-400 hover:border-emerald-500/50 px-3 py-1.5 rounded transition-all tracking-wider uppercase">
+            [ MODE: DARK ]
+        </button>
+    </div>
+
+    <div class="max-w-5xl mx-auto space-y-8">
+
+        <div class="space-y-2 select-none">
+            <pre id="asciiBanner" class="text-emerald-400 font-bold tracking-tighter leading-none text-xs md:text-sm whitespace-pre mx-auto block text-left">
+ ██████╗ ████████╗███████╗████████╗
+██╔════╝ ╚══██╔══╝██╔════╝╚══██╔══╝
+██║  ███╗   ██║   █████╗     ██║   
+██║   ██║   ██║   ██╔══╝     ██║   
+╚██████╔╝███████╗ ██║        ██║   
+ ╚═════╝ ╚══════╝ ╚═╝        ╚═╝   </pre>
+            <div class="pt-2">
+                <h1 id="brandTitle" class="text-xs font-mono text-gray-400 tracking-wide">Git Identity Forensics Tool</h1>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="stat-card bg-neutral-950/40 border border-neutral-900 rounded p-4 flex flex-col justify-between h-24">
+                <span class="text-xs text-neutral-500 font-mono">Repositories</span>
+                <span id="counterRepos" class="text-2xl text-emerald-500 font-semibold font-mono">0</span>
+            </div>
+            <div class="stat-card bg-neutral-950/40 border border-neutral-900 rounded p-4 flex flex-col justify-between h-24">
+                <span class="text-xs text-neutral-500 font-mono">Aliases</span>
+                <span id="counterAliases" class="text-2xl text-white font-semibold font-mono">0</span>
+            </div>
+            <div class="stat-card bg-neutral-950/40 border border-neutral-900 rounded p-4 flex flex-col justify-between h-24">
+                <span class="text-xs text-neutral-500 font-mono">Collaborators</span>
+                <span id="counterCollabs" class="text-2xl text-white font-semibold font-mono">0</span>
+            </div>
+            <div class="stat-card bg-neutral-950/40 border border-neutral-900 rounded p-4 flex flex-col justify-between h-24">
+                <span class="text-xs text-neutral-500 font-mono">First Year</span>
+                <span id="counterFirstYear" class="text-2xl text-amber-500/80 font-semibold font-mono">-</span>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div class="flex flex-col space-y-3">
+                <div class="w-full text-sm leading-relaxed text-white terminal-input-wrapper">
+                    <span class="text-emerald-500 font-mono mr-2">user@gift ~</span>
+                    <span id="inputLabel" class="text-neutral-400 font-mono mr-2">Input username / url :</span>
+                    <div class="inline-flex items-center flex-wrap flex-1 min-w-[200px]">
+                        <input
+                            id="targetInput"
+                            type="text"
+                            spellcheck="false"
+                            placeholder="[ Type here ]"
+                            autocomplete="off"
+                        />
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4 text-xs font-mono select-none">
+                    <div id="workersWrapper" class="flex items-center text-neutral-500 bg-neutral-950 border border-neutral-900 rounded px-2 py-1">
+                        <span>--workers=</span>
+                        <input type="number" id="workersInput" value="10" min="1" max="50" 
+                               class="w-8 bg-transparent text-white font-bold font-mono focus:outline-none focus:ring-0 border-none p-0 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                    </div>
+                    <button type="submit" id="executeBtn" onclick="triggerGIFTScan()"
+                            class="text-emerald-400 border border-emerald-950/60 bg-emerald-950/10 px-3 py-1 rounded text-xs font-bold hover:bg-emerald-950/40 transition-all uppercase tracking-wider">
+                        [RUN ENGINE]
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="consoleLogs" class="space-y-2 text-xs">
+            <div class="flex items-center gap-2 text-neutral-500 font-mono">Initialized GIFT modules</div>
+            <div class="flex items-center gap-2 text-neutral-500 font-mono">Awaiting target...</div>
+        </div>
+
+        <div id="statusBarContainer" class="hidden space-y-2 text-sm max-w-md">
+            <div id="progressBarHeader" class="flex justify-between text-xs text-neutral-500">
+                <span>Running metadata analytics engine...</span>
+                <span>Extracting logs</span>
+            </div>
+            <div class="w-full bg-neutral-900 h-1.5 rounded overflow-hidden border border-neutral-800/60">
+                <div id="progressBar" class="bg-emerald-500 h-full w-0"></div>
+            </div>
+        </div>
+
+        <div id="errorPanel" class="hidden text-red-400 border border-red-950/40 bg-red-950/10 p-4 rounded-lg text-sm space-y-1">
+            <p class="font-bold text-red-500 flex items-center gap-2">✕ Forensic Extraction Fault</p>
+            <p id="errorText" class="text-xs text-neutral-500">Target profile context mapping rejected.</p>
+        </div>
+
+        <div id="payloadOutput" class="hidden space-y-8">
+            
+            <div id="coreIdentityMapBox" class="border border-neutral-900 rounded-lg p-5 bg-neutral-950/40 space-y-5">
+                <div id="identityHeader" class="flex justify-between items-start border-b border-neutral-900 pb-3">
+                    <div>
+                        <span id="badgeIdentity" class="text-xs font-bold bg-white text-black px-1.5 py-0.5 rounded uppercase tracking-wider" style="font-size: 10px;">Identity Map</span>
+                        <h2 class="text-white font-bold text-base mt-2" id="resTarget">username</h2>
+                    </div>
+                    <span id="resScannedAt" class="text-xs text-neutral-500">TIMESTAMP</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
+                    <div>
+                        <span class="text-xs text-neutral-500 block mb-0.5">Isolated Core Email</span>
+                        <span class="text-emerald-400 font-medium select-all" id="resEmail">N/A</span>
+                    </div>
+                    <div class="md:col-span-2">
+                        <span class="text-xs text-neutral-500 block mb-1">Associated Commit Aliases</span>
+                        <div id="resAliases" class="flex flex-wrap gap-1.5 text-xs text-gray-300"></div>
+                    </div>
+                </div>
+
+                <div id="timelineContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-neutral-900 pt-4 text-xs">
+                    <div class="space-y-1">
+                        <span id="oldestActivityLabel" class="text-neutral-500 block uppercase tracking-wider text-[10px]">α Oldest Activity (First Commit)</span>
+                        <div class="timeline-box bg-black/40 border border-neutral-900 rounded p-2 font-mono space-y-0.5">
+                            <p id="firstRepoText" class="text-gray-300">Repo: <span id="firstRepo" class="text-white font-medium">-</span></p>
+                            <p id="firstHashText" class="text-gray-400">Hash: <span id="firstHash" class="text-neutral-500 select-all">-</span></p>
+                            <p id="firstDateText" class="text-gray-400">Date: <span id="firstDate" class="text-amber-500/80">-</span></p>
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <span id="latestActivityLabel" class="text-neutral-500 block uppercase tracking-wider text-[10px]">ω Latest Activity (Most Recent)</span>
+                        <div class="timeline-box bg-black/40 border border-neutral-900 rounded p-2 font-mono space-y-0.5">
+                            <p id="latestRepoText" class="text-gray-300">Repo: <span id="latestRepo" class="text-white font-medium">-</span></p>
+                            <p id="latestHashText" class="text-gray-400">Hash: <span id="latestHash" class="text-neutral-500 select-all">-</span></p>
+                            <p id="latestDateText" class="text-gray-400">Date: <span id="latestDate" class="text-emerald-400/80">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reposBox" class="border border-neutral-900 bg-neutral-950/20 rounded-lg p-5 space-y-3">
+                <span id="reposBoxLabel" class="text-xs text-neutral-500 block uppercase tracking-wider font-mono">Repositories</span>
+                <div id="resReposInline" class="flex flex-wrap gap-2 text-xs font-mono text-gray-400"></div>
+            </div>
+
+            <div id="graphBox" class="border border-neutral-900 bg-neutral-950/20 rounded-lg p-5">
+                <span id="graphBoxLabel" class="text-xs text-neutral-500 block uppercase tracking-wider font-mono mb-4">Identity Relationship Graph</span>
+                <div id="cyGraphContainer" class="w-full h-80 rounded border border-neutral-900/60 bg-black/60 relative overflow-hidden cursor-pointer"></div>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex items-center gap-2">
+                    <span id="collabsTitle" class="text-white text-xs font-bold uppercase tracking-wider">Discovered Network Nodes (Collaborators)</span>
+                    <span id="collabsLine" class="h-px bg-neutral-800 flex-grow"></span>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table id="collabsTable" class="w-full text-left text-sm text-gray-300">
+                        <thead id="collabsTableHeader" class="text-xs text-neutral-500 border-b border-neutral-900 bg-neutral-950/30">
+                            <tr>
+                                <th class="py-2 px-3 font-normal">Identity Identifier / Email</th>
+                                <th class="py-2 px-3 font-normal">Known User Aliases</th>
+                                <th class="py-2 px-3 font-normal text-center w-24">Repos Shared</th>
+                            </tr>
+                        </thead>
+                        <tbody id="collabsTableBody" class="divide-y divide-neutral-900 text-xs"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="pt-12 pb-6 text-center select-none">
+            <p id="footerText" class="text-xs text-neutral-600 font-mono tracking-wide">
+                Made with <span class="text-red-500 animate-pulse">❤️</span> by <span class="text-neutral-400 hover:text-emerald-400 transition-colors duration-200">Ashish Suresh Patil</span>
+            </p>
+        </div>
+
+    </div>
+
+    <script>
+        let currentTheme = 'dark';
+        let latestScanData = null;
+        let runningSanitizedUser = 'target';
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const inputField = document.getElementById('targetInput');
+            inputField.focus();
+
+            inputField.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); 
+                    triggerGIFTScan();
+                }
+            });
+        });
+
+        function toggleThemeMode() {
+            const body = document.body;
+            const btn = document.getElementById('themeToggleBtn');
+            const targetInput = document.getElementById('targetInput');
+            const asciiBanner = document.getElementById('asciiBanner');
+            const counterAliases = document.getElementById('counterAliases');
+            const counterCollabs = document.getElementById('counterCollabs');
+            
+            if (currentTheme === 'dark') {
+                currentTheme = 'light';
+                body.className = "terminal-bg light-theme text-neutral-800 min-h-screen font-mono p-4 md:p-12 selection:bg-gray-200 relative";
+                btn.textContent = "[ MODE: LIGHT ]";
+                btn.className = "font-mono text-xs font-bold border border-neutral-300 bg-white text-neutral-700 hover:text-emerald-600 hover:border-emerald-500 px-3 py-1.5 rounded transition-all tracking-wider uppercase shadow-sm";
+                
+                asciiBanner.className = "text-emerald-600 font-bold tracking-tighter leading-none text-xs md:text-sm whitespace-pre mx-auto block text-left";
+
+                counterAliases.className = "text-2xl text-neutral-900 font-semibold font-mono";
+                counterCollabs.className = "text-2xl text-neutral-900 font-semibold font-mono";
+
+                document.getElementById('inputLabel').className = "text-neutral-500 font-mono mr-2";
+                document.getElementById('workersWrapper').className = "flex items-center text-neutral-400 bg-white border border-neutral-300 rounded px-2 py-1 shadow-sm";
+                document.getElementById('workersInput').className = "w-8 bg-transparent text-neutral-900 font-bold font-mono focus:outline-none focus:ring-0 border-none p-0 text-center [appearance:textfield]";
+                document.getElementById('brandTitle').className = "text-xs font-mono text-neutral-400 tracking-wide";
+                document.getElementById('progressBarHeader').className = "flex justify-between text-xs text-neutral-400";
+                
+                document.querySelectorAll('.stat-card').forEach(el => el.className = "stat-card bg-white border border-neutral-200 rounded p-4 flex flex-col justify-between h-24 shadow-sm");
+                document.getElementById('coreIdentityMapBox').className = "border border-neutral-200 rounded-lg p-5 bg-white space-y-5 shadow-sm";
+                document.getElementById('identityHeader').className = "flex justify-between items-start border-b border-neutral-200 pb-3";
+                document.getElementById('badgeIdentity').className = "text-xs font-bold bg-neutral-900 text-white px-1.5 py-0.5 rounded uppercase tracking-wider";
+                document.getElementById('resTarget').className = "text-neutral-900 font-bold text-base mt-2";
+                document.getElementById('timelineContainer').className = "grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-neutral-200 pt-4 text-xs";
+                document.querySelectorAll('.timeline-box').forEach(el => el.className = "timeline-box bg-neutral-50 border border-neutral-200 rounded p-2 font-mono space-y-0.5");
+                document.getElementById('reposBox').className = "border border-neutral-200 bg-neutral-50 rounded-lg p-5 space-y-3 shadow-sm";
+                document.getElementById('graphBox').className = "border border-neutral-200 bg-neutral-50 rounded-lg p-5 shadow-sm";
+                document.getElementById('cyGraphContainer').className = "w-full h-80 rounded border border-neutral-200 bg-white relative overflow-hidden cursor-pointer shadow-inner";
+                
+                document.getElementById('collabsTitle').className = "text-neutral-800 text-xs font-bold uppercase tracking-wider";
+                document.getElementById('collabsLine').className = "h-px bg-neutral-200 flex-grow";
+                document.getElementById('collabsTable').className = "w-full text-left text-sm text-neutral-700";
+                document.getElementById('collabsTableHeader').className = "text-xs text-neutral-400 border-b border-neutral-200 bg-neutral-50";
+                
+                document.getElementById('footerText').className = "text-xs text-neutral-400 font-mono tracking-wide";
+            } else {
+                currentTheme = 'dark';
+                body.className = "terminal-bg text-gray-200 min-h-screen font-mono p-4 md:p-12 selection:bg-gray-800 relative";
+                btn.className = "font-mono text-xs font-bold border border-neutral-800 bg-neutral-950/40 text-neutral-400 hover:text-emerald-400 hover:border-emerald-500/50 px-3 py-1.5 rounded transition-all tracking-wider uppercase";
+                btn.textContent = "[ MODE: DARK ]";
+                
+                asciiBanner.className = "text-emerald-400 font-bold tracking-tighter leading-none text-xs md:text-sm whitespace-pre mx-auto block text-left";
+
+                counterAliases.className = "text-2xl text-white font-semibold font-mono";
+                counterCollabs.className = "text-2xl text-white font-semibold font-mono";
+
+                document.getElementById('inputLabel').className = "text-neutral-400 font-mono mr-2";
+                document.getElementById('workersWrapper').className = "flex items-center text-neutral-500 bg-neutral-950 border border-neutral-900 rounded px-2 py-1";
+                document.getElementById('workersInput').className = "w-8 bg-transparent text-white font-bold font-mono focus:outline-none focus:ring-0 border-none p-0 text-center [appearance:textfield]";
+                document.getElementById('brandTitle').className = "text-xs font-mono text-gray-400 tracking-wide";
+                document.getElementById('progressBarHeader').className = "flex justify-between text-xs text-neutral-500";
+                
+                document.querySelectorAll('.stat-card').forEach(el => el.className = "stat-card bg-neutral-950/40 border border-neutral-900 rounded p-4 flex flex-col justify-between h-24");
+                document.getElementById('coreIdentityMapBox').className = "border border-neutral-900 rounded-lg p-5 bg-neutral-950/40 space-y-5";
+                document.getElementById('identityHeader').className = "flex justify-between items-start border-b border-neutral-900 pb-3";
+                document.getElementById('badgeIdentity').className = "text-xs font-bold bg-white text-black px-1.5 py-0.5 rounded uppercase tracking-wider";
+                document.getElementById('resTarget').className = "text-white font-bold text-base mt-2";
+                document.getElementById('timelineContainer').className = "grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-neutral-900 pt-4 text-xs";
+                document.querySelectorAll('.timeline-box').forEach(el => el.className = "timeline-box bg-black/40 border border-neutral-900 rounded p-2 font-mono space-y-0.5");
+                document.getElementById('reposBox').className = "border border-neutral-900 bg-neutral-950/20 rounded-lg p-5 space-y-3";
+                document.getElementById('graphBox').className = "border border-neutral-900 bg-neutral-950/20 rounded-lg p-5";
+                document.getElementById('cyGraphContainer').className = "w-full h-80 rounded border border-neutral-900/60 bg-black/60 relative overflow-hidden cursor-pointer";
+                
+                document.getElementById('collabsTitle').className = "text-white text-xs font-bold uppercase tracking-wider";
+                document.getElementById('collabsLine').className = "h-px bg-neutral-800 flex-grow";
+                document.getElementById('collabsTable').className = "w-full text-left text-sm text-gray-300";
+                document.getElementById('collabsTableHeader').className = "text-xs text-neutral-500 border-b border-neutral-900 bg-neutral-950/30";
+                
+                document.getElementById('footerText').className = "text-xs text-neutral-600 font-mono tracking-wide";
+            }
+
+            if(latestScanData) {
+                renderScanPayload(latestScanData);
+                initializeGraph(latestScanData, runningSanitizedUser);
+            }
+        }
+
+        async function triggerGIFTScan() {
+            const targetInput = document.getElementById('targetInput');
+            const workersInput = document.getElementById('workersInput');
+            const executeBtn = document.getElementById('executeBtn');
+            const consoleLogs = document.getElementById('consoleLogs');
+            const statusBarContainer = document.getElementById('statusBarContainer');
+            const progressBar = document.getElementById('progressBar');
+            const errorPanel = document.getElementById('errorPanel');
+            const payloadOutput = document.getElementById('payloadOutput');
+
+            const target = targetInput.value.trim();
+            const workers = parseInt(workersInput.value) || 10;
+
+            if(!target) return;
+
+            targetInput.disabled = true;
+            executeBtn.disabled = true;
+            executeBtn.className = "text-neutral-600 border border-neutral-900 bg-neutral-950/20 px-3 py-1 rounded text-xs font-medium uppercase tracking-wider cursor-not-allowed";
+            errorPanel.classList.add('hidden');
+            payloadOutput.classList.add('hidden');
+            consoleLogs.innerHTML = '';
+            
+            appendLogLine("Accessing git infrastructure endpoints via GIFT engine...", "working");
+            await sleep(600);
+            appendLogLine(`Target reference signature successfully mapped to [${target}]`, "success");
+            appendLogLine(`Spawning [${workers}] isolated commit processing worker tasks...`, "working");
+            await sleep(500);
+            appendLogLine("Analysing metadata profiles and tracing graph timelines...", "working");
+            
+            statusBarContainer.classList.remove('hidden');
+            progressBar.className = "bg-emerald-500 h-full w-0 animate-progress";
+
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target, workers })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || `Forensic failure: Engine exited with code ${response.status}`);
+                }
+
+                await sleep(1500);
+                progressBar.className = "bg-emerald-500 h-full w-full"; 
+                appendLogLine(`GIFT forensic tracing successfully finished for target: ${target}`, "success");
+
+                latestScanData = data;
+                runningSanitizedUser = target.replace(/^(https:\/\/github\.com\/)/, '').split('/')[0];
+                
+                renderScanPayload(data);
+                payloadOutput.classList.remove('hidden');
+                initializeGraph(data, runningSanitizedUser);
+
+            } catch (err) {
+                document.getElementById('errorText').textContent = err.message;
+                errorPanel.classList.remove('hidden');
+                appendLogLine("Pipeline processing aborted due to terminal fault", "error");
+            } finally {
+                targetInput.disabled = false; 
+                executeBtn.disabled = false;
+                executeBtn.className = "text-emerald-400 border border-emerald-950/60 bg-emerald-950/10 px-3 py-1 rounded text-xs font-bold hover:bg-emerald-950/40 transition-all uppercase tracking-wider";
+                statusBarContainer.classList.add('hidden');
+            }
+        }
+
+        function renderScanPayload(data) {
+            const totalReposCount = data.target_identity?.contributed_repositories?.length || 0;
+            const totalAliasesCount = data.target_identity?.associated_names?.length || 0;
+            const totalCollabsCount = data.collaborator_identities?.length || 0;
+            
+            let targetFirstYear = "-";
+            if(data.target_identity?.oldest_activity?.timestamp) {
+                targetFirstYear = new Date(data.target_identity.oldest_activity.timestamp).getFullYear();
+            }
+
+            document.getElementById('counterRepos').textContent = totalReposCount;
+            document.getElementById('counterAliases').textContent = totalAliasesCount;
+            document.getElementById('counterCollabs').textContent = totalCollabsCount;
+            document.getElementById('counterFirstYear').textContent = targetFirstYear;
+
+            document.getElementById('resTarget').textContent = data.target;
+            document.getElementById('resScannedAt').textContent = new Date(data.scanned_at).toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+
+            const tagBgClass = currentTheme === 'light' ? 'bg-neutral-100 border-neutral-300 text-neutral-800' : 'bg-neutral-900 border-neutral-800 text-neutral-300';
+            const textMutedClass = currentTheme === 'light' ? 'text-neutral-500' : 'text-neutral-400';
+            const trHoverClass = currentTheme === 'light' ? 'hover:bg-neutral-100' : 'hover:bg-neutral-900/40';
+            const tdTextClass = currentTheme === 'light' ? 'text-neutral-900' : 'text-white';
+            const borderColClass = currentTheme === 'light' ? 'divide-neutral-200' : 'divide-neutral-900';
+
+            if (data.target_identity) {
+                document.getElementById('resEmail').textContent = data.target_identity.email;
+                
+                document.getElementById('resAliases').innerHTML = data.target_identity.associated_names.map(name => 
+                    `<span class="${tagBgClass} border px-2 py-0.5 rounded font-mono">${name}</span>`
+                ).join('');
+
+                document.getElementById('resReposInline').innerHTML = data.target_identity.contributed_repositories.map(repo => {
+                    const repoUrl = `https://github.com/${runningSanitizedUser}/${repo}`;
+                    return `<a href="${repoUrl}" target="_blank" rel="noopener noreferrer" class="text-xs ${tagBgClass} border hover:border-emerald-500 hover:text-emerald-500 px-2.5 py-1 rounded font-mono transition-all decoration-none flex items-center gap-1">
+                        ${repo} <span class="text-[10px] opacity-60">↗</span>
+                    </a>`;
+                }).join('');
+
+                const formatTime = (isoStr) => isoStr ? isoStr.replace('T', ' ').substring(0, 19) + ' UTC' : 'N/A';
+
+                if (data.target_identity.oldest_activity) {
+                    document.getElementById('firstRepo').className = currentTheme === 'light' ? 'text-neutral-900 font-medium' : 'text-white font-medium';
+                    document.getElementById('firstRepo').textContent = data.target_identity.oldest_activity.repo_name;
+                    document.getElementById('firstHash').textContent = data.target_identity.oldest_activity.commit_hash.substring(0, 7);
+                    document.getElementById('firstDate').textContent = formatTime(data.target_identity.oldest_activity.timestamp);
+                } else {
+                    resetTimelineFields('first');
+                }
+
+                if (data.target_identity.latest_activity) {
+                    const lHash = data.target_identity.latest_activity.commit_hash;
+                    document.getElementById('latestRepo').className = currentTheme === 'light' ? 'text-neutral-900 font-medium' : 'text-white font-medium';
+                    document.getElementById('latestRepo').textContent = data.target_identity.latest_activity.repo_name;
+                    document.getElementById('latestHash').textContent = lHash.substring(0, 7);
+                    document.getElementById('latestDate').textContent = formatTime(data.target_identity.latest_activity.timestamp);
+                } else {
+                    resetTimelineFields('latest');
+                }
+            } else {
+                document.getElementById('resEmail').textContent = "No baseline identity match isolated.";
+                document.getElementById('resAliases').innerHTML = `<span class="${textMutedClass} italic">None mapped</span>`;
+                document.getElementById('resReposInline').innerHTML = `<span class="text-neutral-400 italic text-xs">No active nodes</span>`;
+                resetTimelineFields('first');
+                resetTimelineFields('latest');
+            }
+
+            const tableBody = document.getElementById('collabsTableBody');
+            tableBody.className = `${borderColClass} divide-y text-xs`;
+            tableBody.innerHTML = '';
+
+            if (data.collaborator_identities && data.collaborator_identities.length > 0) {
+                data.collaborator_identities.forEach(node => {
+                    const tr = document.createElement('tr');
+                    tr.className = `${trHoverClass} transition-colors`;
+                    tr.innerHTML = `
+                        <td class="py-2.5 px-3 font-mono ${tdTextClass} select-all">${node.email}</td>
+                        <td class="py-2.5 px-3 ${textMutedClass}">${node.associated_names.join(', ')}</td>
+                        <td class="py-2.5 px-3 text-center text-emerald-500 font-medium">${node.contributed_repositories.length}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            } else {
+                tableBody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-xs text-neutral-400 italic">No secondary collaborative footprints matched in public target parameters.</td></tr>`;
+            }
+        }
+
+        function initializeGraph(data, username) {
+            const container = document.getElementById('cyGraphContainer');
+            if (!container) return;
+
+            const elements = [];
+            const primaryId = data.target || 'target';
+
+            elements.push({
+                data: { 
+                    id: primaryId, 
+                    label: primaryId, 
+                    type: 'core',
+                    url: `https://github.com/${username}`
+                }
+            });
+
+            if (data.collaborator_identities) {
+                data.collaborator_identities.slice(0, 15).forEach((collab, index) => {
+                    const collabId = collab.email || `node_${index}`;
+                    const nameLabel = collab.associated_names?.[0] || collabId;
+                    
+                    elements.push({
+                        data: { 
+                            id: collabId, 
+                            label: nameLabel, 
+                            type: 'collaborator',
+                            url: `https://github.com/${nameLabel}`
+                        }
+                    });
+                    elements.push({
+                        data: { id: `edge_${index}`, source: primaryId, target: collabId }
+                    });
+                });
+            }
+
+            const nodeLabelColor = currentTheme === 'light' ? '#262626' : '#8e8e8e';
+            const nodeDefaultBg = currentTheme === 'light' ? '#f5f5f5' : '#1f1f1f';
+            const nodeDefaultBorder = currentTheme === 'light' ? '#d4d4d4' : '#404040';
+            const edgeLineColor = currentTheme === 'light' ? '#e5e5e5' : '#262626';
+
+            const cy = cytoscape({
+                container: container,
+                elements: elements,
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': nodeDefaultBg,
+                            'label': 'data(label)',
+                            'color': nodeLabelColor,
+                            'font-family': 'monospace',
+                            'font-size': '10px',
+                            'text-valign': 'bottom',
+                            'text-margin-y': '6px',
+                            'width': '12px',
+                            'height': '12px',
+                            'border-width': '1px',
+                            'border-color': nodeDefaultBorder
+                        }
+                    },
+                    {
+                        selector: 'node[type="core"]',
+                        style: {
+                            'background-color': '#10b981',
+                            'color': currentTheme === 'light' ? '#059669' : '#ffffff',
+                            'width': '18px',
+                            'height': '18px',
+                            'border-color': '#34d399',
+                            'font-weight': 'bold'
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 1,
+                            'line-color': edgeLineColor,
+                            'curve-style': 'haystack'
+                        }
+                    }
+                ],
+                layout: {
+                    name: 'cose',
+                    animate: true,
+                    componentSpacing: 40,
+                    nodeRepulsion: function() { return 2048; },
+                    idealEdgeLength: function() { return 32; }
+                }
+            });
+
+            cy.on('tap', 'node', function(evt){
+                const node = evt.target;
+                const targetUrl = node.data('url');
+                if (targetUrl) {
+                    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+                }
+            });
+        }
+
+        function appendLogLine(message, status) {
+            const container = document.getElementById('consoleLogs');
+            const line = document.createElement('div');
+            line.className = "flex items-center gap-2 transition-all duration-300 font-mono opacity-0 transform translate-y-1";
+            
+            let bullet = `<span class="text-neutral-600">…</span>`;
+            if (status === "success") bullet = `<span class="text-emerald-500">✓</span>`;
+            if (status === "error") bullet = `<span class="text-red-500">✕</span>`;
+
+            const textColor = status === 'error' ? 'text-red-400' : status === 'success' ? (currentTheme === 'light' ? 'text-neutral-800' : 'text-gray-200') : 'text-neutral-500';
+
+            line.innerHTML = `${bullet} <span class="${textColor}">${message}</span>`;
+            container.appendChild(line);
+            
+            setTimeout(() => { line.classList.remove('opacity-0', 'translate-y-1'); }, 50);
+        }
+
+        function resetTimelineFields(prefix) {
+            document.getElementById(`${prefix}Repo`).textContent = '-';
+            document.getElementById(`${prefix}Hash`).textContent = '-';
+            document.getElementById(`${prefix}Date`).textContent = '-';
+        }
+
+        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+    </script>
+</body>
+</html>
