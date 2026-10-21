@@ -14,7 +14,6 @@ It ships as two binaries: **`gift-server`** (web UI + JSON API) and **`gift-cli`
 
 ![GIFT CLI](https://github.com/ashishpatil243/GIFT/blob/main/img/img-2.png?raw=true)
 
-
 ---
 
 ## Features
@@ -258,11 +257,3 @@ The authors are not responsible for misuse of this software.
 | Port already in use                                      | Pick another one: `./gift-server -port 9090` or set `PORT`     |
 | Can't reach the server from another device               | Set `HOST=0.0.0.0` (and see the security notes)                |
 | `Invalid port ...`                                       | `PORT` must be a number between 1 and 65535                    |
-
-## Contributing
-
-Issues and pull requests are welcome. Please open an issue first to discuss larger changes.
-
-## License
-
-Add a license of your choice (for example MIT) as a `LICENSE` file and reference it here.
