@@ -1,6 +1,6 @@
 # GIFT
 
-**GIFT** is an OSINT tool for gathering intelligence on GitHub accounts. It comes with a web UI, a JSON API and a CLI, written in Go.
+**Git Identity Forensics Tool ( GIFT )** is an OSINT tool for gathering intelligence on GitHub accounts. It comes with a web UI, a JSON API and a CLI, written in Go.
 
 It ships as two binaries: **`gift-server`** (web UI + JSON API) and **`gift-cli`** (command-line tool that prints JSON to stdout).
 
