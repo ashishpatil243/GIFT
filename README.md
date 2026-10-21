@@ -12,6 +12,11 @@ It ships as two binaries: **`gift-server`** (web UI + JSON API) and **`gift-cli`
 
 ---
 
+![GIFT CLI](https://github.com/ashishpatil243/GIFT/blob/main/img/img-2.png?raw=true)
+
+
+---
+
 ## Features
 
 - OSINT on GitHub accounts from a **username**, **profile URL**, or **`user/repo` URL**
@@ -33,13 +38,13 @@ To build from source you also need [Go](https://go.dev/dl/) 1.20 or newer.
 
 ### Download a release
 
-1. Download the binary for your platform from the [Releases](../../releases) page.
+1. Download the binary for your platform from the [Releases](https://github.com/ashishpatil243/GIFT/releases) page.
 2. Place it next to the `ui/` folder, so the layout looks like this:
 
    ```
    gift/
-   ├── gift-server        
-   ├── gift-cli          
+   ├── gift-server      
+   ├── gift-cli
    ├── .env.example
    └── ui/
        └── index.html ...
@@ -50,17 +55,7 @@ To build from source you also need [Go](https://go.dev/dl/) 1.20 or newer.
    ```bash
    chmod +x gift-server gift-cli
    ```
-
-Cross-compile examples:
-
-```bash
-# Repeat for gift-cli.go to build the CLI
-GOOS=linux   GOARCH=amd64 go build -o dist/gift-server-linux-amd64   gift-server.go
-GOOS=linux   GOARCH=arm64 go build -o dist/gift-server-linux-arm64   gift-server.go
-GOOS=darwin  GOARCH=arm64 go build -o dist/gift-server-macos-arm64   gift-server.go
-GOOS=windows GOARCH=amd64 go build -o dist/gift-server-windows-amd64.exe gift-server.go
-```
-
+   
 ## Usage
 
 ### Web server
@@ -264,3 +259,10 @@ The authors are not responsible for misuse of this software.
 | Can't reach the server from another device               | Set `HOST=0.0.0.0` (and see the security notes)                |
 | `Invalid port ...`                                       | `PORT` must be a number between 1 and 65535                    |
 
+## Contributing
+
+Issues and pull requests are welcome. Please open an issue first to discuss larger changes.
+
+## License
+
+Add a license of your choice (for example MIT) as a `LICENSE` file and reference it here.
