@@ -8,6 +8,10 @@ It ships as two binaries: **`gift-server`** (web UI + JSON API) and **`gift-cli`
 
 ---
 
+![GIFT WebUI](https://github.com/ashishpatil243/GIFT/blob/main/img/img-1.png?raw=true)
+
+---
+
 ## Features
 
 - OSINT on GitHub accounts from a **username**, **profile URL**, or **`user/repo` URL**
